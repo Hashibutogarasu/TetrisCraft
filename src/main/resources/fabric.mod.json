@@ -1,0 +1,44 @@
+{
+	"schemaVersion": 1,
+	"id": "tetriscraft",
+	"version": "${version}",
+	"name": "TetrisCraft",
+	"description": "This is a mod that adds battle royale Tetris to Minecraft.",
+	"authors": [
+		"Hashibutogarasu"
+	],
+	"contact": {
+		"homepage": "https://karasu256.com/",
+		"sources": "https://github.com/Hashibutogarasu/TetrisCraft"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/tetriscraft/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.karasu256.tetriscraft.TetrisCraft"
+		],
+		"client": [
+			"com.karasu256.tetriscraft.TetrisCraftClient"
+		],
+		"fabric-datagen": [
+			"com.karasu256.tetriscraft.TetrisCraftDataGenerator"
+		]
+	},
+	"mixins": [
+		"tetriscraft.mixins.json",
+		{
+			"config": "tetriscraft.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.16.10",
+		"minecraft": "~1.21.4",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}

@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.karasu256.tetriscraft.mixin.client",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "DrawContextAccessor",
+    "ExampleClientMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+	}
+}

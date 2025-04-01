@@ -1,31 +1,29 @@
 package com.karasu256.tetriscraft.screen;
 
 import com.karasu256.tetriscraft.GameRoom;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.karasu256.tetriscraft.TetrisCraftClient;
+import com.karasu256.tetriscraft.networking.client.ClientNetworkManager;
+import com.karasu256.tetriscraft.networking.packet.RequestNowRoomsPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.PlayerSkinDrawer;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
 import net.minecraft.client.input.KeyCodes;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.client.texture.NativeImage;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Util;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 
 public class GameRoomListWidget extends AlwaysSelectedEntryListWidget<GameRoomListWidget.Entry> {
     private static final Identifier JOIN_HIGHLIGHTED_TEXTURE = Identifier.of("tetriscraft", "textures/gui/join_highlighted.png");
@@ -61,27 +59,9 @@ public class GameRoomListWidget extends AlwaysSelectedEntryListWidget<GameRoomLi
     }
 
     private CompletableFuture<List<GameRoom>> loadRooms() {
-        // この部分は実際のネットワーク処理を行うべきですが、デモとしてダミーデータを生成します
-        // 実装時にはサーバーからルーム情報を取得する処理に置き換えてください
+        ClientNetworkManager.sendToServer(new RequestNowRoomsPayload(null));
         return CompletableFuture.supplyAsync(() -> {
-            List<GameRoom> dummyRooms = new ArrayList<>();
-            // デモ用ダミーデータ
-            dummyRooms.add(new GameRoom(UUID.randomUUID(), "テトリス部屋1", UUID.randomUUID()));
-            dummyRooms.add(new GameRoom(UUID.randomUUID(), "初心者歓迎！", UUID.randomUUID()));
-            dummyRooms.add(new GameRoom(UUID.randomUUID(), "腕に自信あり集合", UUID.randomUUID()));
-            // ダミーのプレイヤーを追加
-            dummyRooms.get(0).addPlayer(UUID.randomUUID());
-            dummyRooms.get(0).addPlayer(UUID.randomUUID());
-            dummyRooms.get(1).addPlayer(UUID.randomUUID());
-            
-            // 実際の実装では一時停止を削除してください
-            try {
-                Thread.sleep(500); // ロード中の表示をデモするための一時停止
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            
-            return dummyRooms;
+            return TetrisCraftClient.clientRoomsCache;
         });
     }
 
@@ -210,17 +190,32 @@ public class GameRoomListWidget extends AlwaysSelectedEntryListWidget<GameRoomLi
             // ホスト情報
             String hostText = "ホスト: " + (room.getHostPlayerId().toString().substring(0, 6) + "...");
             context.drawTextWithShadow(textRenderer, hostText, x + 32 + 3, textY + 12, 0x808080);
-            
-            // プレイヤーアイコンのレンダリング（デフォルトのスティーブアイコン）
-            Identifier playerIconTexture = Identifier.of("minecraft", "textures/entity/steve.png");
-            context.drawTexture(RenderLayer::getGuiTextured, playerIconTexture, x, y, 32, 32, 8, 8, 8, 8, 64, 64);
-            
+
+            // プレイヤーアイコンのレンダリング
+            PlayerListEntry playerListEntry = null;
+            if (this.client.getNetworkHandler() != null) {
+                playerListEntry = this.client.getNetworkHandler().getPlayerListEntry(room.getHostPlayerId());
+            }
+
+            // プレイヤーアイコンの描画（左端）
+            int iconSize = 32; // アイコンサイズ
+
+            // プレイヤーのスキンテクスチャを描画
+            if (playerListEntry != null) {
+                // PlayerSkinDrawerを使用して適切に描画
+                PlayerSkinDrawer.draw(context, playerListEntry.getSkinTextures(), x, y, iconSize, Colors.WHITE);
+            } else {
+                // フォールバック: デフォルトのスティーブスキン
+                Identifier playerIconTexture = Identifier.of("minecraft", "textures/entity/steve.png");
+                context.drawTexture(RenderLayer::getGuiTextured, playerIconTexture, x, y, 32, 32, 8, 8, 8, 8, 64, 64);
+            }
+
             if ((Boolean)this.client.options.getTouchscreen().getValue() || hovered) {
                 context.fill(x, y, x + 32, y + 32, 0x1F000000);
-                
+
                 int mouseXOffset = mouseX - x;
                 boolean isOverIcon = mouseXOffset < 32;
-                
+
                 // 参加アイコンの描画
                 Identifier joinTexture = isOverIcon ? JOIN_HIGHLIGHTED_TEXTURE : JOIN_TEXTURE;
                 context.drawGuiTexture(RenderLayer::getGuiTextured, joinTexture, x, y, 32, 32);
@@ -230,7 +225,7 @@ public class GameRoomListWidget extends AlwaysSelectedEntryListWidget<GameRoomLi
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             GameRoomListWidget.this.setSelected(this);
-            
+
             if (mouseX - GameRoomListWidget.this.getRowLeft() <= 32.0 && Util.getMeasuringTimeMs() - this.lastClickTime >= 250L) {
                 this.lastClickTime = Util.getMeasuringTimeMs();
                 joinRoom();
@@ -242,13 +237,15 @@ public class GameRoomListWidget extends AlwaysSelectedEntryListWidget<GameRoomLi
                 joinRoom();
                 return true;
             }
-            
+
             this.lastClickTime = Util.getMeasuringTimeMs();
             return true;
         }
 
         public void joinRoom() {
             // 実際の実装ではこのルームに接続するコードを記述します
+            ClientNetworkManager.sendJoinRoom(this.room);
+            TetrisCraftClient.currentRoom = this.room;
             this.client.setScreen(new GameScreen());
         }
     }
@@ -266,11 +263,11 @@ public class GameRoomListWidget extends AlwaysSelectedEntryListWidget<GameRoomLi
             int centerX = (this.client.currentScreen.width - this.client.textRenderer.getWidth(LOADING_TEXT)) / 2;
             int centerY = y + (entryHeight - 9) / 2;
             context.drawTextWithShadow(this.client.textRenderer, LOADING_TEXT, centerX, centerY, 0xFFFFFF);
-            
-            String dots = Util.getMeasuringTimeMs() / 300L % 4L == 0L ? "   " : 
-                          Util.getMeasuringTimeMs() / 300L % 4L == 1L ? ".  " : 
+
+            String dots = Util.getMeasuringTimeMs() / 300L % 4L == 0L ? "   " :
+                          Util.getMeasuringTimeMs() / 300L % 4L == 1L ? ".  " :
                           Util.getMeasuringTimeMs() / 300L % 4L == 2L ? ".." : "...";
-            context.drawTextWithShadow(this.client.textRenderer, dots, 
+            context.drawTextWithShadow(this.client.textRenderer, dots,
                     centerX + this.client.textRenderer.getWidth(LOADING_TEXT), centerY, 0xFFFFFF);
         }
 

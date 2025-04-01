@@ -1,0 +1,13 @@
+{
+    "music-a-2": {
+      "sounds": [
+        "tetriscraft:music-a-2"
+      ]
+    },
+    "line_deleted_1": {
+        "sounds": [
+            "tetriscraft:line_deleted_1"
+        ]
+    }
+}
+

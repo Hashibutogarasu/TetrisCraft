@@ -1,4 +1,6 @@
 package com.karasu256.tetriscraft;
 
-public class JoinEventType {
+public enum JoinEventType {
+    JOIN,
+    LEAVE
 }

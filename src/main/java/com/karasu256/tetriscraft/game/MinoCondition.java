@@ -4,7 +4,7 @@ import com.karasu256.tetriscraft.TetrisCraft;
 import net.minecraft.util.Identifier;
 
 public enum MinoCondition {
-    I_MINO("i", false),
+    I_MINO("i", true),
     T_MINO("t", false),
     O_MINO("o", false),
     S_MINO("s", false),

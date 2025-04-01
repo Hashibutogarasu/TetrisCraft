@@ -1,5 +1,7 @@
 package com.karasu256.tetriscraft.screen;
 
+import com.karasu256.tetriscraft.TetrisCraft;
+import com.karasu256.tetriscraft.TetrisCraftClient;
 import com.karasu256.tetriscraft.game.GameCondition;
 import com.karasu256.tetriscraft.GameEventManager;
 import com.karasu256.tetriscraft.game.GameEventType;
@@ -13,18 +15,20 @@ import com.karasu256.tetriscraft.screen.widget.BoardWidget;
 import com.karasu256.tetriscraft.screen.widget.HoldPreviewWidget;
 import com.karasu256.tetriscraft.screen.widget.MinoPreviewWidget;
 import com.karasu256.tetriscraft.screen.widget.NextPreviewWidget;
+import com.karasu256.tetriscraft.sounds.ModSounds;
+
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.sound.PositionedSoundInstance;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-
-import java.util.List;
-import java.util.UUID;
 
 import org.lwjgl.glfw.GLFW;
 
-public class GameScreen extends Screen {
+public class GameScreen extends Screen implements IScreen {
     private BoardWidget boardWidget;
     private TetrominoCoordinates currentPiece;
     private long lastDropTime;
@@ -41,9 +45,12 @@ public class GameScreen extends Screen {
     private GameCondition gameCondition;
     private final TextRenderer textRenderer;
     private GarbageManager garbageManager;
-    private final GameEventManager eventManager; // 追加: ゲームイベント管理用
+    private final GameEventManager eventManager;
     private final EventDisplayManager eventDisplayManager;
     private final ScoreManager scoreManager;
+
+    private boolean isMusicPlaying = false;
+    private PositionedSoundInstance musicInstance;
 
     public GameScreen() {
         super(Text.literal("Tetris"));
@@ -70,6 +77,8 @@ public class GameScreen extends Screen {
         this.landedTime = 0;
         this.moveCount = 0;
         this.scoreManager.reset(); // スコアをリセット
+
+        this.playBackgroundMusic();
     }
 
     @Override
@@ -77,32 +86,29 @@ public class GameScreen extends Screen {
         // テトリスの標準的なサイズ 10x20のグリッド
         int boardWidth = (BoardWidget.DOT_SIZE + BoardWidget.DOT_SPACING) * BoardWidget.BOARD_WIDTH;
         int boardHeight = (BoardWidget.DOT_SIZE + BoardWidget.DOT_SPACING) * BoardWidget.BOARD_HEIGHT;
-        
+
         // プレビューのサイズ
         int previewWidth = (BoardWidget.DOT_SIZE + BoardWidget.DOT_SPACING) * MinoPreviewWidget.PREVIEW_SIZE;
 
         // メインのボードを中央に配置
         int centerX = (this.width - boardWidth) / 2;
         int centerY = (this.height - boardHeight) / 2;
-        
+
         // 各ウィジェットを初期化
         this.boardWidget = new BoardWidget(
-            this.gameCondition,
-            centerX,
-            centerY
-        );
+                this.gameCondition,
+                centerX,
+                centerY);
 
         // ホールドウィジェットの位置を設定（ボードの左側、適切な間隔を空ける）
         this.holdPreviewWidget = new HoldPreviewWidget(
-            centerX - previewWidth - (BoardWidget.DOT_SIZE + BoardWidget.DOT_SPACING) * 2,
-            centerY
-        );
+                centerX - previewWidth - (BoardWidget.DOT_SIZE + BoardWidget.DOT_SPACING) * 2,
+                centerY);
 
         // ネクストウィジェットの位置を設定（ボードの右側、適切な間隔を空ける）
         this.nextPreviewWidget = new NextPreviewWidget(
-            centerX + boardWidth + (BoardWidget.DOT_SIZE + BoardWidget.DOT_SPACING) * 2,
-            centerY
-        );
+                centerX + boardWidth + (BoardWidget.DOT_SIZE + BoardWidget.DOT_SPACING) * 2,
+                centerY);
     }
 
     @Override
@@ -112,10 +118,9 @@ public class GameScreen extends Screen {
 
         // 一時的な描画用ボードを作成
         BoardWidget tempBoard = new BoardWidget(
-            gameCondition,
-            boardWidget.getXOffset(),
-            boardWidget.getYOffset()
-        );
+                gameCondition,
+                boardWidget.getXOffset(),
+                boardWidget.getYOffset());
 
         // 固定されたミノを通常表示でコピー
         for (int x = 0; x < BoardWidget.BOARD_WIDTH; x++) {
@@ -151,7 +156,7 @@ public class GameScreen extends Screen {
         tempBoard.render(context, mouseX, mouseY, delta);
         holdPreviewWidget.render(context, mouseX, mouseY, delta);
         nextPreviewWidget.render(context, mouseX, mouseY, delta);
-        
+
         // イベント表示の描画
         if (gameCondition == GameCondition.PLAYING) {
             // ボードの左側にイベントを表示
@@ -160,11 +165,21 @@ public class GameScreen extends Screen {
 
         // ゲーム状態に応じたメッセージ表示
         if (gameCondition == GameCondition.WAITING_START) {
-            String startText = "Press SPACE to Start";
-            int textWidth = this.textRenderer.getWidth(startText);
-            int centerX = (this.width - textWidth) / 2;
-            int centerY = this.height / 2;
-            context.drawText(this.textRenderer, startText, centerX, centerY, 0xFFFFFF, true);
+            if (MinecraftClient.getInstance().player != null && TetrisCraftClient.currentRoom != null
+                    && TetrisCraftClient.currentRoom.getHostPlayerId()
+                            .equals(MinecraftClient.getInstance().player.getUuid())) {
+                String startText = "Press SPACE to Start";
+                int textWidth = this.textRenderer.getWidth(startText);
+                int centerX = (this.width - textWidth) / 2;
+                int centerY = this.height / 2;
+                context.drawText(this.textRenderer, startText, centerX, centerY, 0xFFFFFF, true);
+            } else {
+                String waitingText = "Waiting for Host to Start";
+                int textWidth = this.textRenderer.getWidth(waitingText);
+                int centerX = (this.width - textWidth) / 2;
+                int centerY = this.height / 2;
+                context.drawText(this.textRenderer, waitingText, centerX, centerY, 0xFFFFFF, true);
+            }
         } else if (gameCondition == GameCondition.GAME_OVER) {
             String gameOverText = "GAME OVER - Press R to Restart";
             int textWidth = this.textRenderer.getWidth(gameOverText);
@@ -175,18 +190,18 @@ public class GameScreen extends Screen {
 
         // スコア表示の追加
         String scoreText = "Score: " + scoreManager.getCurrentScore();
-        context.drawText(this.textRenderer, scoreText, 
-            boardWidget.getXOffset() - 150, 
-            boardWidget.getYOffset() + 200, 
-            0xFFFFFF, true);
-        
+        context.drawText(this.textRenderer, scoreText,
+                boardWidget.getXOffset() - 150,
+                boardWidget.getYOffset() + 200,
+                0xFFFFFF, true);
+
         // ゲーム中の場合のみ自動落下と固定処理を実行
         if (gameCondition == GameCondition.PLAYING) {
             // 自動落下と固定処理
             long currentTime = System.currentTimeMillis();
             if (currentPiece != null) {
                 boolean isLanded = currentPiece.isLanded(boardWidget);
-                
+
                 if (isLanded) {
                     // 接地状態の場合
                     if (landedTime == 0) {
@@ -202,7 +217,7 @@ public class GameScreen extends Screen {
                     // 非接地状態の場合は猶予時間とカウントをリセット
                     landedTime = 0;
                     moveCount = 0;
-                    
+
                     // 通常の自動落下処理
                     if (currentTime - lastDropTime > DROP_DELAY) {
                         currentPiece.moveDown(boardWidget);
@@ -231,7 +246,7 @@ public class GameScreen extends Screen {
         if (gameCondition == GameCondition.PLAYING) {
             if (currentPiece != null) {
                 boolean isLanded = currentPiece.isLanded(boardWidget);
-                
+
                 if (keyCode == GLFW.GLFW_KEY_LEFT || keyCode == GLFW.GLFW_KEY_A) {
                     if (currentPiece.moveLeft(boardWidget) && isLanded) {
                         resetLockDelay();
@@ -309,33 +324,35 @@ public class GameScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         // マウスクリック位置をボード座標に変換
-        int[] boardCoords = boardWidget.screenToBoardCoordinates((int)mouseX, (int)mouseY);
-
-        if (boardCoords != null) {
-            // デバッグ用：クリックした位置にIミノを配置
-            boardWidget.setMino(boardCoords[0], boardCoords[1], MinoCondition.I_MINO);
-        }
+        // int[] boardCoords = boardWidget.screenToBoardCoordinates((int)mouseX,
+        // (int)mouseY);
+        //
+        // if (boardCoords != null) {
+        // // デバッグ用：クリックした位置にIミノを配置
+        // boardWidget.setMino(boardCoords[0], boardCoords[1], MinoCondition.I_MINO);
+        // }
 
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     /**
-     * 新しいテトリスピースを生成します
+     * 新しいテトリミノを生成します
+     * 
      * @return スポーンが成功した場合はtrue、ゲームオーバーの場合はfalse
      */
     private boolean spawnNewPiece() {
         // 7種1巡方式でミノタイプを取得
         MinoCondition newType = minoGenerator.getNextMino();
         TetrominoCoordinates newPiece = new TetrominoCoordinates(newType);
-        
+
         // スポーン位置で衝突があればゲームオーバー
         if (newPiece.checkSpawnCollision(boardWidget)) {
             return false;
         }
-        
+
         // スポーンが成功した場合、現在のピースとして設定
         currentPiece = newPiece;
-        
+
         // NEXTの表示を更新
         nextPreviewWidget.updateNextMinos(minoGenerator);
 
@@ -343,31 +360,57 @@ public class GameScreen extends Screen {
         landedTime = 0;
         moveCount = 0;
         hasUsedHold = false;
-        
+
         return true;
     }
-    
+
     /**
      * 現在のピースをボードに固定し、次のピースを生成します
      */
     private void lockCurrentPiece() {
         if (currentPiece != null) {
             currentPiece.lockToBoard(boardWidget);
-            
+
             // イベントをリセット
             eventManager.resetEvents();
-            
+
             // Tスピン判定を先に取得
             int tSpinType = currentPiece.getTSpinType();
             boolean isTSpin = tSpinType > 0 && currentPiece.getMinoType() == MinoCondition.T_MINO;
-            
+
             // ボードの左端にイベントを表示するための座標を計算
             int eventX = boardWidget.getXOffset() - 150; // ボードの左150ピクセルの位置
             int eventY = boardWidget.getYOffset(); // ボードと同じ高さ
-            
             // ライン消去の判定と実行
             int clearedLines = boardWidget.clearFilledLines();
             
+            // サウンドエフェクト再生の判定
+            if (clearedLines > 0) {
+                // 特殊ケースの判定
+                if (isTSpin) {
+                    // Tスピンダブル
+                    if (clearedLines == 2) {
+                        playSound(SoundEvents.ENTITY_VILLAGER_YES);
+                    } 
+                    // Tスピントリプル
+                    else if (clearedLines == 3) {
+                        playSound(SoundEvents.ENTITY_TNT_PRIMED);
+                    }
+                    // その他のTスピン
+                    else {
+                        playSound(ModSounds.LINE_DELETED_1_EVENT);
+                    }
+                }
+                // テトリス（4ライン消し）
+                else if (clearedLines == 4) {
+                    playSound(SoundEvents.ENTITY_VILLAGER_YES);
+                }
+                // 通常のライン消去
+                else {
+                    playSound(ModSounds.LINE_DELETED_1_EVENT);
+                }
+            }
+
             // Tスピンの場合は、ライン消去の有無にかかわらずTスピン系イベントを表示
             if (isTSpin) {
                 GameEventType eventType;
@@ -378,7 +421,8 @@ public class GameScreen extends Screen {
                     // ライン消去ありのTスピン
                     switch (clearedLines) {
                         case 1:
-                            eventType = (tSpinType == 1) ? GameEventType.T_SPIN_MINI_SINGLE : GameEventType.T_SPIN_SINGLE;
+                            eventType = (tSpinType == 1) ? GameEventType.T_SPIN_MINI_SINGLE
+                                    : GameEventType.T_SPIN_SINGLE;
                             break;
                         case 2:
                             eventType = GameEventType.T_SPIN_DOUBLE;
@@ -391,7 +435,7 @@ public class GameScreen extends Screen {
                             break;
                     }
                 }
-                
+
                 // イベントを追加
                 eventManager.addEvent(eventType);
                 eventDisplayManager.addEvent(eventType, eventX, eventY);
@@ -400,7 +444,7 @@ public class GameScreen extends Screen {
             // 通常のライン消去の場合（Tスピンでない場合のみ）
             else if (clearedLines > 0) {
                 GameEventType eventType = null;
-                
+
                 switch (clearedLines) {
                     case 1:
                         eventType = GameEventType.SINGLE;
@@ -415,7 +459,7 @@ public class GameScreen extends Screen {
                         eventType = GameEventType.TETRIS;
                         break;
                 }
-                
+
                 // イベントを追加
                 if (eventType != null) {
                     eventManager.addEvent(eventType);
@@ -423,14 +467,14 @@ public class GameScreen extends Screen {
                     scoreManager.addEventScore(eventType, eventManager.isBackToBack()); // スコア加算
                 }
             }
-            
+
             // パーフェクトクリアの判定（ライン消去がある場合のみ）
             if (clearedLines > 0 && boardWidget.isPerfectClear()) {
                 eventManager.addEvent(GameEventType.PERFECT_CLEAR);
                 eventDisplayManager.addEvent(GameEventType.PERFECT_CLEAR, eventX, eventY);
                 scoreManager.addEventScore(GameEventType.PERFECT_CLEAR, eventManager.isBackToBack()); // スコア加算
             }
-            
+
             // BTBとコンボの更新
             boolean btbAdded = false;
             for (GameEventType event : eventManager.getCurrentEvents()) {
@@ -440,7 +484,7 @@ public class GameScreen extends Screen {
                     btbAdded = true;
                 }
             }
-            
+
             // コンボ数の更新と表示（ライン消去がある場合のみ）
             eventManager.updateCombo(clearedLines > 0);
             if (eventManager.getComboCount() > 1) {
@@ -448,19 +492,20 @@ public class GameScreen extends Screen {
                 eventDisplayManager.addEvent(comboEvent, eventX, eventY);
                 scoreManager.addComboScore(eventManager.getComboCount(), eventManager.isBackToBack()); // コンボスコア加算
             }
-            
+
             // お邪魔ミノの処理
             int attackLines = eventManager.calculateTotalAttackLines();
             if (attackLines > 0) {
                 garbageManager.cancelGarbageLines(attackLines);
                 // 攻撃を送信
-                GameEventType lastEvent = eventManager.getLastEvent();
-                if (lastEvent != null) {
-                    if (MinecraftClient.getInstance().player != null) {
-                        // List<UUID> targetPlayers = List.of(MinecraftClient.getInstance().player.getUuid());
-                        // ClientNetworkManager.sendAttackEvent(attackLines, targetPlayers, lastEvent);
-                    }
-                }
+                // GameEventType lastEvent = eventManager.getLastEvent();
+                // if (lastEvent != null) {
+                // if (MinecraftClient.getInstance().player != null &&
+                // TetrisCraftClient.currentRoom != null) {
+                // List<UUID> targetPlayers = TetrisCraftClient.currentRoom.getPlayerIds();
+                // ClientNetworkManager.sendAttackEvent(attackLines, targetPlayers, lastEvent);
+                // }
+                // }
             }
 
             // お邪魔ミノの挿入
@@ -468,7 +513,7 @@ public class GameScreen extends Screen {
             if (garbageLines > 0) {
                 boardWidget.insertGarbageLines(garbageLines);
             }
-            
+
             // 次のピースのスポーンを試みる
             if (!spawnNewPiece()) {
                 // ゲームオーバー処理
@@ -492,5 +537,23 @@ public class GameScreen extends Screen {
 
     public GarbageManager getGarbageManager() {
         return garbageManager;
+    }
+
+    @Override
+    public void close() {
+        ClientNetworkManager.sendLeaveRoom();
+        TetrisCraftClient.currentRoom = null;
+        this.stopBackgroundMusic();
+        super.close();
+    }
+
+    @Override
+    public SoundEvent getBackgroundMusic() {
+        return ModSounds.GAME_MUSIC_EVENT;
+    }
+
+    @Override
+    public boolean shouldMusicLoop() {
+        return true;
     }
 }

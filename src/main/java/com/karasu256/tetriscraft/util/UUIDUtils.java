@@ -1,6 +1,7 @@
 package com.karasu256.tetriscraft.util;
 
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
@@ -17,7 +18,19 @@ public class UUIDUtils {
         return nbt;
     }
 
-    public static List<UUID> getUUIDList(@Nullable  NbtCompound nbt) {
+    public static List<UUID> getUUIDList(@Nullable NbtList nbt) {
+        if (nbt == null) {
+            return new ArrayList<>();
+        }
+
+        List<UUID> uuids = new ArrayList<>();
+        for (int i = 0; i < nbt.size(); i++) {
+            uuids.add(fromByteArray((nbt.getCompound(i)).getByteArray("uuid")));
+        }
+        return uuids;
+    }
+
+    public static List<UUID> getUUIDList(@Nullable NbtCompound nbt) {
         if (nbt == null) {
             return new ArrayList<>();
         }

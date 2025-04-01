@@ -1,6 +1,7 @@
 package com.karasu256.tetriscraft;
 
 import com.karasu256.tetriscraft.screen.GameScreen;
+import com.karasu256.tetriscraft.screen.SelectGameRoomScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
@@ -16,10 +17,17 @@ public class ModKeyBinds {
         "category.tetriscraft"
     ));
 
+    private static final KeyBinding KEY_OPEN_ROOM_LIST = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        "key.tetriscraft.open_room_list",
+        InputUtil.Type.KEYSYM,
+        GLFW.GLFW_KEY_R,
+        "category.tetriscraft"
+    ));
+
     private static final KeyBinding KEY_ROTATE_RIGHT = KeyBindingHelper.registerKeyBinding(new KeyBinding(
         "key.tetriscraft.rotate_right",
         InputUtil.Type.KEYSYM,
-        GLFW.GLFW_KEY_LEFT_CONTROL,
+        GLFW.GLFW_KEY_UP,
         "category.tetriscraft"
     ));
 
@@ -55,6 +63,10 @@ public class ModKeyBinds {
         ClientTickEvents.START_CLIENT_TICK.register(client -> {
             while (KEY_OPEN_MENU.wasPressed()) {
                 MinecraftClient.getInstance().setScreen(new GameScreen());
+            }
+
+            while (KEY_OPEN_ROOM_LIST.wasPressed()) {
+                MinecraftClient.getInstance().setScreen(new SelectGameRoomScreen(MinecraftClient.getInstance().currentScreen));
             }
 
             if(MinecraftClient.getInstance().currentScreen instanceof GameScreen gameScreen) {

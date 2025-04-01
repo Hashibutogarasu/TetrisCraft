@@ -1,6 +1,10 @@
 package com.karasu256.tetriscraft.screen;
 
 import com.karasu256.tetriscraft.GameRoom;
+import com.karasu256.tetriscraft.JoinEventType;
+import com.karasu256.tetriscraft.TetrisCraftClient;
+import com.karasu256.tetriscraft.networking.client.ClientNetworkManager;
+
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -90,12 +94,18 @@ public class CreateGameRoomScreen extends Screen {
             // デモとしてローカルのGameRoomオブジェクトを作成
             UUID playerId = MinecraftClient.getInstance().player.getUuid();
             GameRoom newRoom = new GameRoom(UUID.randomUUID(), roomName, playerId);
+
+            ClientNetworkManager.sendCreateRoom(newRoom);
             
             // 作成したルームに自分自身を追加
             newRoom.addPlayer(playerId);
             
             // ゲーム画面に遷移
             MinecraftClient.getInstance().setScreen(new GameScreen());
+
+            ClientNetworkManager.sendJoinRoom(newRoom);
+
+            TetrisCraftClient.currentRoom = newRoom;
         }
     }
     

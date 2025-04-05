@@ -192,6 +192,21 @@ public class BoardWidget implements Drawable {
     }
 
     /**
+     * 揃っているラインをチェックします
+     * @return 揃っているライン数
+     */
+    public int checkFilledLines() {
+        int filledLines = 0;
+        // 下から上に向かってチェック
+        for (int y = boardState[0].length - 1; y >= 0; y--) {
+            if (isLineFilled(y)) {
+                filledLines++;
+            }
+        }
+        return filledLines;
+    }
+
+    /**
      * お邪魔ミノを指定された段数分挿入します
      * @param lines 挿入する段数
      */
@@ -234,5 +249,43 @@ public class BoardWidget implements Drawable {
         }
         // すべてのマスが空ならパーフェクトクリア
         return true;
+    }
+
+    /**
+     * フェードアウトエフェクトを描画します
+     * @param context 描画コンテキスト
+     * @param fadeProgress フェードの進行度（0.0f ～ 1.0f）
+     */
+    public void renderFadeOut(DrawContext context, float fadeProgress) {
+        // 下から上に向かってチェック
+        for (int y = boardState[0].length - 1; y >= 0; y--) {
+            if (isLineFilled(y)) {
+                // ラインが揃っている場合、フェードアウト効果を適用
+                for (int x = 0; x < boardState.length; x++) {
+                    DotWidget dotWidget = new DotWidget(
+                        x * (DOT_SIZE + DOT_SPACING),
+                        x_offset,
+                        y * (DOT_SIZE + DOT_SPACING),
+                        y_offset,
+                        boardState[x][y]
+                    );
+                    // フェードアウト中のラインは透明度を変化させる
+                    dotWidget.setAlpha(1.0f - fadeProgress);
+                    dotWidget.render(context, 0, 0, 0);
+                }
+            } else {
+                // 通常の描画
+                for (int x = 0; x < boardState.length; x++) {
+                    DotWidget dotWidget = new DotWidget(
+                        x * (DOT_SIZE + DOT_SPACING),
+                        x_offset,
+                        y * (DOT_SIZE + DOT_SPACING),
+                        y_offset,
+                        boardState[x][y]
+                    );
+                    dotWidget.render(context, 0, 0, 0);
+                }
+            }
+        }
     }
 }

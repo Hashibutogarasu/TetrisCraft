@@ -14,6 +14,7 @@ public class DotWidget implements Drawable {
     private final int y_offset;
 
     private MinoCondition condition;
+    private float alpha = 1.0f; // アルファ値（透明度）
 
     public DotWidget(int x, int x_offset, int y, int y_offset) {
         this(x, x_offset, y, y_offset, MinoCondition.EMPTY);
@@ -27,10 +28,18 @@ public class DotWidget implements Drawable {
         this.condition = condition;
     }
 
+    /**
+     * アルファ値（透明度）を設定します
+     * @param alpha 0.0f（完全に透明）から1.0f（完全に不透明）までの値
+     */
+    public void setAlpha(float alpha) {
+        this.alpha = Math.max(0.0f, Math.min(1.0f, alpha));
+    }
+
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // ゴースト表示の場合は半透明で描画
-        float alpha = condition.isGhost() ? 0.5f : 1.0f;
+        float alpha = condition.isGhost() ? 0.5f : this.alpha;
 
         RenderSystem.enableBlend();
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);

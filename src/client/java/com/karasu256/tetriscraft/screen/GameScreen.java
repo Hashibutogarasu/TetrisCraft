@@ -51,8 +51,15 @@ public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.
     private final EventDisplayManager eventDisplayManager;
     private final ScoreManager scoreManager;
 
+    private boolean isFadingOut = false;
+    private float fadeOutProgress = 0.0f;
+    private static final float FADE_OUT_SPEED = 0.1f;
+
     private boolean isMusicPlaying = false;
     private PositionedSoundInstance musicInstance;
+
+    private int spawnDelayTicks = 0;
+    private static final int SPAWN_DELAY_TICKS = 30;
 
     public GameScreen() {
         super(Text.literal("Tetris"));
@@ -79,6 +86,7 @@ public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.
         this.landedTime = 0;
         this.moveCount = 0;
         this.scoreManager.reset(); // スコアをリセット
+        this.spawnDelayTicks = 0;
 
         this.playBackgroundMusic();
     }
@@ -199,9 +207,18 @@ public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.
 
         // ゲーム中の場合のみ自動落下と固定処理を実行
         if (gameCondition == GameCondition.PLAYING) {
-            // 自動落下と固定処理
-            long currentTime = System.currentTimeMillis();
-            if (currentPiece != null) {
+            if (spawnDelayTicks > 0) {
+                spawnDelayTicks--;
+                if (spawnDelayTicks == 0) {
+                    // 遅延後にテトリミノを出現させる
+                    if (!spawnNewPiece()) {
+                        gameCondition = GameCondition.GAME_OVER;
+                        stopBackgroundMusic();
+                    }
+                }
+            } else if (currentPiece != null) {
+                // 通常の更新処理
+                long currentTime = System.currentTimeMillis();
                 boolean isLanded = currentPiece.isLanded(boardWidget);
 
                 if (isLanded) {
@@ -333,15 +350,6 @@ public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.
      */
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        // マウスクリック位置をボード座標に変換
-        // int[] boardCoords = boardWidget.screenToBoardCoordinates((int)mouseX,
-        // (int)mouseY);
-        //
-        // if (boardCoords != null) {
-        // // デバッグ用：クリックした位置にIミノを配置
-        // boardWidget.setMino(boardCoords[0], boardCoords[1], MinoCondition.I_MINO);
-        // }
-
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -420,6 +428,18 @@ public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.
             // ライン消去の判定と実行
             int clearedLines = boardWidget.clearFilledLines();
             
+            // ライン消去があった場合は遅延を設定
+            if (clearedLines > 0) {
+                spawnDelayTicks = SPAWN_DELAY_TICKS;
+                currentPiece = null;  // 現在のピースをクリア
+            } else {
+                // ライン消去がない場合は即座に次のピースを出現
+                if (!spawnNewPiece()) {
+                    gameCondition = GameCondition.GAME_OVER;
+                    stopBackgroundMusic();
+                }
+            }
+
             // サウンドエフェクト再生の判定
             if (clearedLines > 0) {
                 // 特殊ケースの判定
@@ -548,13 +568,6 @@ public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.
             int garbageLines = garbageManager.getAndDecrementGarbageLines();
             if (garbageLines > 0) {
                 boardWidget.insertGarbageLines(garbageLines);
-            }
-
-            // 次のピースのスポーンを試みる
-            if (!spawnNewPiece()) {
-                // ゲームオーバー処理
-                gameCondition = GameCondition.GAME_OVER;
-                stopBackgroundMusic(); // BGMを停止
             }
         }
     }

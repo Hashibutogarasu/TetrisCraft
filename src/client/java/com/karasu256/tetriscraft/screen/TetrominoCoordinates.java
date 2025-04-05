@@ -27,6 +27,7 @@ public class TetrominoCoordinates {
     private boolean isTSpin = false;
     private boolean isTSpinMini = false;
     private boolean isAutoDrop = false;
+    private boolean isHardDropping = false;
 
     // 各ミノタイプの回転軸を定義
     private static final int[][][] ROTATION_POINTS = {
@@ -208,12 +209,11 @@ public class TetrominoCoordinates {
      * @return 移動が成功した場合はtrue、底に達したかブロックに衝突した場合はfalse
      */
     public boolean moveDown(BoardWidget boardWidget) {
-        // 移動前に衝突チェック
         if (checkCollision(0, 1, boardWidget)) {
             return false;
         }
         boardY++;
-        if (eventListener != null && !isAutoDrop) {
+        if (eventListener != null && !isAutoDrop && !isHardDropping) {
             eventListener.onSoftDrop();
         }
         return true;
@@ -225,6 +225,14 @@ public class TetrominoCoordinates {
      */
     public void setAutoDrop(boolean autoDrop) {
         this.isAutoDrop = autoDrop;
+    }
+
+    /**
+     * ハードドロップモードを設定します
+     * @param hardDropping ハードドロップ中の場合はtrue
+     */
+    public void setHardDropping(boolean hardDropping) {
+        this.isHardDropping = hardDropping;
     }
 
     /**
@@ -276,11 +284,17 @@ public class TetrominoCoordinates {
         if (tryWallKicks(boardWidget, originalShape, rotation, nextRotation, true)) {
             rotation = nextRotation;
             
-            // Tミノの場合はTスピン判定を行う (壁キックの有無にかかわらず)
+            // Tミノの場合はTスピン判定を行う
             if (minoType == MinoCondition.T_MINO) {
-                checkTSpin(boardWidget, 0, 0);
+                // Tスピン判定の実行
+                boolean isTSpinRotation = checkTSpin(boardWidget, 0, 0);
+                if (isTSpinRotation && eventListener != null) {
+                    eventListener.onTSpinRotate();
+                    return true;
+                }
             }
             
+            // 通常の回転イベントを発火（Tスピンでない場合）
             if (eventListener != null) {
                 eventListener.onRotate();
             }
@@ -306,13 +320,13 @@ public class TetrominoCoordinates {
             return true;
         }
         
-        int nextRotation = (rotation + 3) % 4; // -1 + 4 = 3 (反時計回り)
+        int nextRotation = (rotation + 3) % 4;
         
         // 現在の形状を保存
         int[][] originalShape = new int[shape.length][2];
         for (int i = 0; i < shape.length; i++) {
             originalShape[i][0] = shape[i][0];
-            originalShape[i][1] = shape[i][1]; // バグ修正: originalShape[i][1]ではなくshape[i][1]を使用
+            originalShape[i][1] = shape[i][1];
         }
         
         // 回転を適用
@@ -322,16 +336,18 @@ public class TetrominoCoordinates {
         if (tryWallKicks(boardWidget, originalShape, rotation, nextRotation, false)) {
             rotation = nextRotation;
             
-            // Tミノの場合はTスピン判定を行う (壁キックの有無にかかわらず)
+            // Tミノの場合はTスピン判定を行う
             if (minoType == MinoCondition.T_MINO) {
-                if(checkTSpin(boardWidget, 0, 0)){
+                // Tスピン判定の実行
+                boolean isTSpinRotation = checkTSpin(boardWidget, 0, 0);
+                if (isTSpinRotation && eventListener != null) {
                     eventListener.onTSpinRotate();
-                }
-                else{
-                    eventListener.onRotate();
+                    return true;
                 }
             }
-            else if (eventListener != null) {
+            
+            // 通常の回転イベントを発火（Tスピンでない場合）
+            if (eventListener != null) {
                 eventListener.onRotate();
             }
             return true;
@@ -430,32 +446,26 @@ public class TetrominoCoordinates {
 
         int filledFrontCorners = frontCorners[0] + frontCorners[1];
 
-        boolean wasTSpin = isTSpin;
-        boolean wasTSpinMini = isTSpinMini;
-
         if (filledCorners >= 3) {
             // 3つ以上の角が埋まっている場合は通常のTスピン
             isTSpin = true;
             isTSpinMini = false;
+            return true;
         } else if (filledCorners == 2 && hasKick && filledFrontCorners == 2) {
             // 2つの角が埋まっていて、キック移動があり、前方の2つの角が埋まっている場合も通常のTスピン
             isTSpin = true;
             isTSpinMini = false;
+            return true;
         } else if (filledCorners == 2 && hasKick) {
             // 2つの角が埋まっていて、キック移動があるがTスピンミニの条件を満たす場合
             isTSpin = true;
             isTSpinMini = true;
-        } else {
-            // それ以外は非Tスピン
-            isTSpin = false;
-            isTSpinMini = false;
+            return false;  // Tスピンミニは通常の回転として扱う
         }
 
-        // Tスピン状態が変化した場合にイベントを発火
-        if (!wasTSpin && isTSpin) {
-            return true;
-        }
-
+        // それ以外は非Tスピン
+        isTSpin = false;
+        isTSpinMini = false;
         return false;
     }
 

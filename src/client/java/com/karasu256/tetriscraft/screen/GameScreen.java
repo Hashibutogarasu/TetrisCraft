@@ -254,45 +254,43 @@ public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.
                 if (keyCode == GLFW.GLFW_KEY_LEFT || keyCode == GLFW.GLFW_KEY_A) {
                     if (currentPiece.moveLeft(boardWidget) && isLanded) {
                         resetLockDelay();
-                        playSound(SoundEvents.BLOCK_STONE_STEP);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_RIGHT || keyCode == GLFW.GLFW_KEY_D) {
                     if (currentPiece.moveRight(boardWidget) && isLanded) {
                         resetLockDelay();
-                        playSound(SoundEvents.BLOCK_STONE_STEP);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_DOWN || keyCode == GLFW.GLFW_KEY_S) {
                     if (currentPiece.moveDown(boardWidget)) {
                         lastDropTime = System.currentTimeMillis();
-                        scoreManager.addSoftDropScore(1); // ソフトドロップスコアを加算
-                        playSound(SoundEvents.BLOCK_STONE_STEP);
+                        scoreManager.addSoftDropScore(1);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_UP || keyCode == GLFW.GLFW_KEY_W) {
                     if (currentPiece.rotate(boardWidget) && isLanded) {
                         resetLockDelay();
-                        playSound(SoundEvents.BLOCK_WOODEN_BUTTON_CLICK_ON);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_Z || keyCode == GLFW.GLFW_KEY_LEFT_CONTROL) {
-                    // 反時計回りの回転
                     if (currentPiece.rotateCounterClockwise(boardWidget) && isLanded) {
                         resetLockDelay();
-                        playSound(SoundEvents.BLOCK_WOODEN_BUTTON_CLICK_ON);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_SPACE) {
                     // ハードドロップの処理
                     int dropDistance = 0;
-                    while (currentPiece.moveDown(boardWidget)) {
-                        dropDistance++;
+                    if (currentPiece != null) {
+                        currentPiece.setHardDropping(true);
+                        while (currentPiece.moveDown(boardWidget)) {
+                            dropDistance++;
+                        }
+                        currentPiece.setHardDropping(false);
+                        scoreManager.addHardDropScore(dropDistance);
+                        playSound(SoundEvents.BLOCK_STONE_PLACE);
+                        lockCurrentPiece();
+                        landedTime = 0;
                     }
-                    scoreManager.addHardDropScore(dropDistance); // ハードドロップスコアを加算
-                    playSound(SoundEvents.BLOCK_STONE_PLACE); // ブロック設置音を再生
-                    lockCurrentPiece();
-                    landedTime = 0;
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_LEFT_SHIFT || keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT) {
                     if (!hasUsedHold) {

@@ -21,14 +21,16 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-public class GameScreen extends Screen implements IScreen {
+public class GameScreen extends Screen implements IScreen, TetrominoCoordinates.TetrominoEventListener {
     private BoardWidget boardWidget;
     private TetrominoCoordinates currentPiece;
     private long lastDropTime;
@@ -191,7 +193,7 @@ public class GameScreen extends Screen implements IScreen {
         // スコア表示の追加
         String scoreText = "Score: " + scoreManager.getCurrentScore();
         context.drawText(this.textRenderer, scoreText,
-                boardWidget.getXOffset() - 150,
+                boardWidget.getXOffset() - 100,
                 boardWidget.getYOffset() + 200,
                 0xFFFFFF, true);
 
@@ -220,7 +222,9 @@ public class GameScreen extends Screen implements IScreen {
 
                     // 通常の自動落下処理
                     if (currentTime - lastDropTime > DROP_DELAY) {
+                        currentPiece.setAutoDrop(true);
                         currentPiece.moveDown(boardWidget);
+                        currentPiece.setAutoDrop(false);
                         lastDropTime = currentTime;
                     }
                 }
@@ -250,28 +254,33 @@ public class GameScreen extends Screen implements IScreen {
                 if (keyCode == GLFW.GLFW_KEY_LEFT || keyCode == GLFW.GLFW_KEY_A) {
                     if (currentPiece.moveLeft(boardWidget) && isLanded) {
                         resetLockDelay();
+                        playSound(SoundEvents.BLOCK_STONE_STEP);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_RIGHT || keyCode == GLFW.GLFW_KEY_D) {
                     if (currentPiece.moveRight(boardWidget) && isLanded) {
                         resetLockDelay();
+                        playSound(SoundEvents.BLOCK_STONE_STEP);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_DOWN || keyCode == GLFW.GLFW_KEY_S) {
                     if (currentPiece.moveDown(boardWidget)) {
                         lastDropTime = System.currentTimeMillis();
                         scoreManager.addSoftDropScore(1); // ソフトドロップスコアを加算
+                        playSound(SoundEvents.BLOCK_STONE_STEP);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_UP || keyCode == GLFW.GLFW_KEY_W) {
                     if (currentPiece.rotate(boardWidget) && isLanded) {
                         resetLockDelay();
+                        playSound(SoundEvents.BLOCK_WOODEN_BUTTON_CLICK_ON);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_Z || keyCode == GLFW.GLFW_KEY_LEFT_CONTROL) {
                     // 反時計回りの回転
                     if (currentPiece.rotateCounterClockwise(boardWidget) && isLanded) {
                         resetLockDelay();
+                        playSound(SoundEvents.BLOCK_WOODEN_BUTTON_CLICK_ON);
                     }
                     return true;
                 } else if (keyCode == GLFW.GLFW_KEY_SPACE) {
@@ -281,6 +290,7 @@ public class GameScreen extends Screen implements IScreen {
                         dropDistance++;
                     }
                     scoreManager.addHardDropScore(dropDistance); // ハードドロップスコアを加算
+                    playSound(SoundEvents.BLOCK_STONE_PLACE); // ブロック設置音を再生
                     lockCurrentPiece();
                     landedTime = 0;
                     return true;
@@ -296,9 +306,11 @@ public class GameScreen extends Screen implements IScreen {
                             MinoCondition temp = holdPiece;
                             holdPiece = currentType;
                             currentPiece = new TetrominoCoordinates(temp);
+                            currentPiece.setEventListener(this); // イベントリスナーを設定
                         }
                         hasUsedHold = true;
                         holdPreviewWidget.updateHoldMino(holdPiece);
+                        playSound(SoundEvents.BLOCK_WOODEN_BUTTON_CLICK_ON);
                         return true;
                     }
                 }
@@ -361,7 +373,31 @@ public class GameScreen extends Screen implements IScreen {
         moveCount = 0;
         hasUsedHold = false;
 
+        if (currentPiece != null) {
+            currentPiece.setEventListener(this);
+        }
+
         return true;
+    }
+
+    @Override
+    public void onRotate() {
+        playSound(SoundEvents.BLOCK_WOODEN_BUTTON_CLICK_ON);
+    }
+
+    @Override
+    public void onSoftDrop() {
+        playSound(SoundEvents.BLOCK_STONE_STEP);
+    }
+
+    @Override
+    public void onTSpinRotate() {
+        playSound(SoundEvents.BLOCK_LEVER_CLICK);
+    }
+
+    @Override
+    public void onMove() {
+        playSound(SoundEvents.BLOCK_STONE_STEP);
     }
 
     /**
@@ -369,8 +405,10 @@ public class GameScreen extends Screen implements IScreen {
      */
     private void lockCurrentPiece() {
         if (currentPiece != null) {
+            // ブロックを固定する前に音声を再生
+            playSound(SoundEvents.BLOCK_STONE_PLACE);
             currentPiece.lockToBoard(boardWidget);
-
+            
             // イベントをリセット
             eventManager.resetEvents();
 
@@ -518,6 +556,7 @@ public class GameScreen extends Screen implements IScreen {
             if (!spawnNewPiece()) {
                 // ゲームオーバー処理
                 gameCondition = GameCondition.GAME_OVER;
+                stopBackgroundMusic(); // BGMを停止
             }
         }
     }
@@ -555,5 +594,14 @@ public class GameScreen extends Screen implements IScreen {
     @Override
     public boolean shouldMusicLoop() {
         return true;
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderBackground(context, mouseX, mouseY, delta);
+        int width = context.getScaledWindowWidth();
+        int height = context.getScaledWindowHeight();
+
+        context.drawTexture(RenderLayer::getGuiTextured, Identifier.of("minecraft", "textures/block/dirt.png"), 0, 0, 0, 0, width, height, 16, 16);
     }
 }

@@ -42,7 +42,7 @@ public interface IScreen {
         SoundEvent music = getBackgroundMusic();
         if (music != null) {
             // デフォルトボリュームとピッチで再生
-            playBackgroundMusic(1.0f, 1.0f);
+            playBackgroundMusic(0.3f, 1.0f);
         }
     }
     
@@ -71,8 +71,8 @@ public interface IScreen {
      * ループ設定が有効な場合、音楽が終了したときに自動的に再生を再開する
      */
     default void tickMusic() {
-        if (shouldMusicLoop() && !com.karasu256.tetriscraft.util.MusicUtility.isMusicCurrentlyPlaying() && 
-                com.karasu256.tetriscraft.util.MusicUtility.getIsMusicPlaying() == false) {
+        if (shouldMusicLoop() && !com.karasu256.tetriscraft.util.MusicUtility.isMusicCurrentlyPlaying() &&
+                !MusicUtility.getIsMusicPlaying()) {
             // 音楽が終了していて、ループが必要な場合は再生を再開
             playBackgroundMusic();
         }

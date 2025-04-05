@@ -7,6 +7,17 @@ import com.karasu256.tetriscraft.screen.widget.BoardWidget;
  * テトリスの論理的なピース（ミノ）を表現するクラス
  */
 public class TetrominoCoordinates {
+    /**
+     * テトリミノの操作イベントを通知するインターフェース
+     */
+    public interface TetrominoEventListener {
+        void onRotate();
+        void onTSpinRotate();
+        void onSoftDrop();
+        void onMove();
+    }
+
+    private TetrominoEventListener eventListener;
     private final MinoCondition minoType;
     private int[][] shape;
     private int boardX;
@@ -15,6 +26,7 @@ public class TetrominoCoordinates {
     private boolean isGhost = false;
     private boolean isTSpin = false;
     private boolean isTSpinMini = false;
+    private boolean isAutoDrop = false;
 
     // 各ミノタイプの回転軸を定義
     private static final int[][][] ROTATION_POINTS = {
@@ -149,6 +161,14 @@ public class TetrominoCoordinates {
     }
     
     /**
+     * イベントリスナーを設定します
+     * @param listener 設定するリスナー
+     */
+    public void setEventListener(TetrominoEventListener listener) {
+        this.eventListener = listener;
+    }
+
+    /**
      * ピースを左に移動します
      * @param boardWidget 現在のボード状態
      * @return 移動が成功した場合はtrue
@@ -159,6 +179,9 @@ public class TetrominoCoordinates {
             return false;
         }
         boardX--;
+        if (eventListener != null) {
+            eventListener.onMove();
+        }
         return true;
     }
     
@@ -173,6 +196,9 @@ public class TetrominoCoordinates {
             return false;
         }
         boardX++;
+        if (eventListener != null) {
+            eventListener.onMove();
+        }
         return true;
     }
     
@@ -187,7 +213,18 @@ public class TetrominoCoordinates {
             return false;
         }
         boardY++;
+        if (eventListener != null && !isAutoDrop) {
+            eventListener.onSoftDrop();
+        }
         return true;
+    }
+
+    /**
+     * 自然落下モードを設定します
+     * @param autoDrop 自然落下の場合はtrue
+     */
+    public void setAutoDrop(boolean autoDrop) {
+        this.isAutoDrop = autoDrop;
     }
 
     /**
@@ -244,6 +281,9 @@ public class TetrominoCoordinates {
                 checkTSpin(boardWidget, 0, 0);
             }
             
+            if (eventListener != null) {
+                eventListener.onRotate();
+            }
             return true;
         }
 
@@ -284,9 +324,16 @@ public class TetrominoCoordinates {
             
             // Tミノの場合はTスピン判定を行う (壁キックの有無にかかわらず)
             if (minoType == MinoCondition.T_MINO) {
-                checkTSpin(boardWidget, 0, 0);
+                if(checkTSpin(boardWidget, 0, 0)){
+                    eventListener.onTSpinRotate();
+                }
+                else{
+                    eventListener.onRotate();
+                }
             }
-            
+            else if (eventListener != null) {
+                eventListener.onRotate();
+            }
             return true;
         }
 
@@ -341,11 +388,11 @@ public class TetrominoCoordinates {
     /**
      * Tスピンの判定を行います
      */
-    private void checkTSpin(BoardWidget boardWidget, int kickX, int kickY) {
+    private boolean checkTSpin(BoardWidget boardWidget, int kickX, int kickY) {
         if (this.minoType != MinoCondition.T_MINO) {
             isTSpin = false;
             isTSpinMini = false;
-            return;
+            return false;
         }
 
         // Tミノの角の位置を確認
@@ -383,6 +430,9 @@ public class TetrominoCoordinates {
 
         int filledFrontCorners = frontCorners[0] + frontCorners[1];
 
+        boolean wasTSpin = isTSpin;
+        boolean wasTSpinMini = isTSpinMini;
+
         if (filledCorners >= 3) {
             // 3つ以上の角が埋まっている場合は通常のTスピン
             isTSpin = true;
@@ -400,6 +450,13 @@ public class TetrominoCoordinates {
             isTSpin = false;
             isTSpinMini = false;
         }
+
+        // Tスピン状態が変化した場合にイベントを発火
+        if (!wasTSpin && isTSpin) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
